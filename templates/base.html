@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}Smart Notepad{% endblock %}</title>
+  <link rel="icon" type="image/svg+xml" href="/static/images/logo.svg" />
+  <link rel="alternate icon" href="/static/images/logo.png" />
+  <!-- Bootstrap 5 CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+  <!-- Font Awesome 6 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body data-theme="light">
+
+  <!-- Navbar -->
+  <nav class="navbar navbar-expand-lg shadow-sm">
+    <div class="container-fluid">
+      <!-- Brand -->
+      <a class="navbar-brand fw-bold fs-4 d-flex align-items-center gap-2" href="/">
+        <img src="/static/images/logo.svg" alt="Logo" width="30" height="30" class="d-inline-block align-text-top" />
+        <span class="brand-text">Smart Notepad</span>
+      </a>
+
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+
+      <div class="collapse navbar-collapse" id="mainNav">
+        <!-- Nav Links -->
+        <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+          <li class="nav-item">
+            <a class="nav-link {% if request.path == '/' %}active{% endif %}" href="/">
+              <i class="fa-solid fa-house me-1"></i>Dashboard
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link {% if request.path == '/note/new' %}active{% endif %}" href="/note/new">
+              <i class="fa-solid fa-plus me-1"></i>New Note
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link {% if request.path == '/files' %}active{% endif %}" href="/files">
+              <i class="fa-solid fa-folder-open me-1"></i>My Files
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link {% if request.path == '/vault' %}active{% endif %}" href="/vault">
+              <i class="fa-solid fa-lock me-1"></i>Password Vault
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link {% if request.path == '/settings' %}active{% endif %}" href="/settings">
+              <i class="fa-solid fa-gear me-1"></i>Settings
+            </a>
+          </li>
+        </ul>
+
+        <!-- Navbar Search -->
+        <form class="d-flex me-3" id="navSearchForm" role="search" onsubmit="return false;">
+          <div class="input-group">
+            <input class="form-control form-control-sm" type="search" id="navSearchInput" placeholder="Search notes..." aria-label="Search" autocomplete="off" />
+            <button class="btn btn-outline-secondary btn-sm" type="submit" id="navSearchBtn">
+              <i class="fa-solid fa-magnifying-glass"></i>
+            </button>
+          </div>
+        </form>
+
+        <!-- Dark Mode Toggle -->
+        <button class="btn btn-outline-secondary btn-sm" id="darkModeToggle" title="Toggle dark mode">
+          <i class="fa-solid fa-moon" id="darkModeIcon"></i>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Flash Messages -->
+  <div class="container mt-3" id="flashContainer">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+  </div>
+
+  <!-- Main Content -->
+  <main class="container my-4">
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer mt-auto py-3 bg-body-secondary border-top">
+    <div class="container text-center text-muted small">
+      Smart Notepad &copy; 2025 | Built with Flask &amp; SQLite
+    </div>
+  </footer>
+
+  <!-- Bootstrap 5 JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <!-- Custom JS -->
+  <script src="/static/js/script.js"></script>
+
+  <script>
+    // ── Theme application ────────────────────────────────────────────────────
+    function applyTheme(theme) {
+      const effective = theme === 'system'
+        ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+        : theme;
+      document.body.setAttribute('data-theme', effective);
+      document.body.setAttribute('data-bs-theme', effective);
+      document.documentElement.setAttribute('data-bs-theme', effective);
+      const icon = document.getElementById('darkModeIcon');
+      if (icon) {
+        icon.className = effective === 'dark' ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+      }
+    }
+
+    // ── Theme initialisation ──────────────────────────────────────────────────
+    (function () {
+      const saved = localStorage.getItem('theme') || 'light';
+      applyTheme(saved);
+    })();
+
+    // ── Dark mode toggle ─────────────────────────────────────────────────────
+    document.getElementById('darkModeToggle').addEventListener('click', function () {
+      const current = document.body.getAttribute('data-theme') || 'light';
+      const next = current === 'dark' ? 'light' : 'dark';
+      localStorage.setItem('theme', next);
+      applyTheme(next);
+    });
+
+    // ── Navbar live search ───────────────────────────────────────────────────
+    (function () {
+      const input = document.getElementById('navSearchInput');
+      if (!input) return;
+      let timer;
+      input.addEventListener('input', function () {
+        clearTimeout(timer);
+        const q = this.value.trim();
+        if (window.location.pathname === '/') {
+          const dashSearch = document.getElementById('searchInput');
+          if (dashSearch) {
+            dashSearch.value = q;
+            dashSearch.dispatchEvent(new Event('input'));
+          }
+          return;
+        }
+        if (!q) return;
+        timer = setTimeout(function () {
+          window.location.href = '/?q=' + encodeURIComponent(q);
+        }, 400);
+      });
+      document.getElementById('navSearchForm').addEventListener('submit', function (e) {
+        e.preventDefault();
+        const q = input.value.trim();
+        if (q) {
+          window.location.href = '/?q=' + encodeURIComponent(q);
+        }
+      });
+    })();
+  </script>
+
+  {% block extra_js %}{% endblock %}
+</body>
+</html>

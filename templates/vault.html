@@ -1,0 +1,732 @@
+{% extends "base.html" %}
+
+{% block title %}Password Vault – Smart Notepad{% endblock %}
+
+{% block content %}
+<div class="container py-2" id="vaultContainer">
+
+  {# ────────────────────────────────────────────────────────────────────────── #}
+  {# 1. SETUP MASTER PASSWORD SCREEN (Only if never configured)                #}
+  {# ────────────────────────────────────────────────────────────────────────── #}
+  {% if not is_setup %}
+  <div class="row justify-content-center py-5">
+    <div class="col-12 col-md-8 col-lg-5">
+      <div class="card border-0 shadow-lg rounded-4 overflow-hidden">
+        <div class="card-body p-4 p-md-5 text-center">
+          <div class="mb-4">
+            <div class="d-inline-flex align-items-center justify-content-center rounded-circle bg-primary-subtle text-primary" style="width: 80px; height: 80px; font-size: 2.2rem;">
+              <i class="fa-solid fa-shield-halved"></i>
+            </div>
+          </div>
+          <h3 class="fw-bold mb-2">Create Master Password</h3>
+          <p class="text-muted small mb-4">
+            Protect your platforms, emails, and passwords. You will need this master password every time you access the vault.
+          </p>
+
+          <form id="setupVaultForm" onsubmit="handleVaultSetup(event)">
+            <div class="mb-3 text-start">
+              <label class="form-label small fw-semibold">Master Password</label>
+              <div class="input-group">
+                <input type="password" class="form-control" id="setupPassword" placeholder="Minimum 4 characters" minlength="4" required autocomplete="new-password">
+                <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('setupPassword', this)">
+                  <i class="fa-regular fa-eye"></i>
+                </button>
+              </div>
+            </div>
+
+            <div class="mb-4 text-start">
+              <label class="form-label small fw-semibold">Confirm Master Password</label>
+              <div class="input-group">
+                <input type="password" class="form-control" id="setupConfirmPassword" placeholder="Re-enter master password" minlength="4" required autocomplete="new-password">
+                <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('setupConfirmPassword', this)">
+                  <i class="fa-regular fa-eye"></i>
+                </button>
+              </div>
+            </div>
+
+            <div class="alert alert-danger py-2 small d-none" id="setupErrorAlert"></div>
+
+            <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold" id="setupSubmitBtn">
+              <i class="fa-solid fa-key me-2"></i>Create Vault &amp; Unlock
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# ────────────────────────────────────────────────────────────────────────── #}
+  {# 2. LOCKED VAULT SCREEN (Password prompt when vault is locked)             #}
+  {# ────────────────────────────────────────────────────────────────────────── #}
+  {% elif not is_unlocked %}
+  <div class="row justify-content-center py-5">
+    <div class="col-12 col-md-8 col-lg-5">
+      <div class="card border-0 shadow-lg rounded-4 overflow-hidden">
+        <div class="card-body p-4 p-md-5 text-center">
+          <div class="mb-4">
+            <div class="d-inline-flex align-items-center justify-content-center rounded-circle bg-warning-subtle text-warning" style="width: 80px; height: 80px; font-size: 2.2rem;">
+              <i class="fa-solid fa-lock"></i>
+            </div>
+          </div>
+          <h3 class="fw-bold mb-2">Vault is Locked</h3>
+          <p class="text-muted small mb-4">
+            Enter your master password to access your saved platform logins and passwords.
+          </p>
+
+          <form id="unlockVaultForm" onsubmit="handleVaultUnlock(event)">
+            <div class="mb-4 text-start">
+              <label class="form-label small fw-semibold">Master Password</label>
+              <div class="input-group input-group-lg shadow-sm">
+                <span class="input-group-text bg-body border-end-0">
+                  <i class="fa-solid fa-lock text-muted"></i>
+                </span>
+                <input type="password" class="form-control border-start-0 border-end-0 ps-0" id="unlockPassword" placeholder="Enter master password" required autofocus autocomplete="current-password">
+                <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('unlockPassword', this)">
+                  <i class="fa-regular fa-eye"></i>
+                </button>
+              </div>
+            </div>
+
+            <div class="alert alert-danger py-2 small d-none" id="unlockErrorAlert"></div>
+
+            <button type="submit" class="btn btn-primary w-100 py-2 fs-6 fw-semibold shadow-sm" id="unlockSubmitBtn">
+              <i class="fa-solid fa-lock-open me-2"></i>Unlock Vault
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# ────────────────────────────────────────────────────────────────────────── #}
+  {# 3. UNLOCKED VAULT DASHBOARD                                              #}
+  {# ────────────────────────────────────────────────────────────────────────── #}
+  {% else %}
+  <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+    <div>
+      <h2 class="fw-bold mb-1 d-flex align-items-center gap-2">
+        <span class="text-primary"><i class="fa-solid fa-shield-halved"></i></span>
+        Password Vault
+      </h2>
+      <p class="text-muted small mb-0">Securely stored platform credentials, emails, and passwords.</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <button class="btn btn-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#addCredModal">
+        <i class="fa-solid fa-plus me-1"></i> Add Account
+      </button>
+      <button class="btn btn-outline-secondary shadow-sm" data-bs-toggle="modal" data-bs-target="#changeMasterModal">
+        <i class="fa-solid fa-key me-1"></i> Change PIN
+      </button>
+      <button class="btn btn-outline-danger shadow-sm" onclick="lockVault()">
+        <i class="fa-solid fa-lock me-1"></i> Lock Vault
+      </button>
+    </div>
+  </div>
+
+  <!-- Search & Filter bar -->
+  <div class="row g-3 mb-4">
+    <div class="col-12 col-md-6 col-lg-4">
+      <div class="input-group shadow-sm">
+        <span class="input-group-text bg-body border-end-0">
+          <i class="fa-solid fa-magnifying-glass text-muted"></i>
+        </span>
+        <input type="text" class="form-control border-start-0 ps-0" id="vaultSearchInput" placeholder="Filter by platform or email…" oninput="filterVaultItems()">
+        <button class="btn btn-outline-secondary" type="button" onclick="clearVaultSearch()">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+    </div>
+    <div class="col-12 col-md-6 col-lg-8 d-flex align-items-center justify-content-md-end text-muted small">
+      <span>Total Accounts: <strong class="text-body" id="vaultTotalCount">{{ credentials|length }}</strong></span>
+    </div>
+  </div>
+
+  <!-- Credentials Cards Grid -->
+  <div class="row g-3" id="vaultGrid">
+    {% for cred in credentials %}
+    <div class="col-12 col-md-6 col-lg-4 cred-card-col" data-platform="{{ cred.platform|lower }}" data-identifier="{{ cred.identifier|lower }}">
+      <div class="card h-100 border-0 shadow-sm rounded-3 overflow-hidden position-relative">
+        <div class="card-body d-flex flex-column p-3">
+          
+          <!-- Card Header: Platform -->
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <div class="d-flex align-items-center gap-2">
+              <div class="platform-icon-badge rounded-circle d-flex align-items-center justify-content-center bg-primary-subtle text-primary fw-bold" style="width: 38px; height: 38px;">
+                <i class="fa-solid fa-globe"></i>
+              </div>
+              <h5 class="fw-bold mb-0 text-truncate" style="max-width: 170px;" title="{{ cred.platform }}">{{ cred.platform }}</h5>
+            </div>
+            <div class="dropdown">
+              <button class="btn btn-sm btn-light border-0 rounded-circle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="fa-solid fa-ellipsis-vertical"></i>
+              </button>
+              <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0">
+                <li>
+                  <button class="dropdown-item" onclick="openEditModal({{ cred.id }}, '{{ cred.platform|e }}', '{{ cred.identifier|e }}', '{{ cred.password|e }}', '{{ cred.notes|e }}')">
+                    <i class="fa-solid fa-pen-to-square me-2 text-primary"></i>Edit
+                  </button>
+                </li>
+                <li><hr class="dropdown-divider"></li>
+                <li>
+                  <button class="dropdown-item text-danger" onclick="openDeleteModal({{ cred.id }}, '{{ cred.platform|e }}')">
+                    <i class="fa-solid fa-trash me-2"></i>Delete
+                  </button>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Email / Number field -->
+          <div class="mb-2 p-2 rounded bg-body-tertiary">
+            <div class="text-muted small" style="font-size: 0.75rem;">Email or Number</div>
+            <div class="d-flex align-items-center justify-content-between gap-1">
+              <span class="fw-medium text-truncate small" title="{{ cred.identifier }}">{{ cred.identifier }}</span>
+              <button class="btn btn-sm btn-link text-decoration-none p-0 text-secondary copy-btn" title="Copy email/number" onclick="copyToClipboard('{{ cred.identifier }}', this)">
+                <i class="fa-regular fa-copy"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Password field -->
+          <div class="mb-3 p-2 rounded bg-body-tertiary">
+            <div class="text-muted small" style="font-size: 0.75rem;">Password</div>
+            <div class="d-flex align-items-center justify-content-between gap-1">
+              <input type="password" readonly class="form-control-plaintext form-control-sm font-monospace p-0 text-truncate border-0" value="{{ cred.password }}" id="pwd-{{ cred.id }}" style="letter-spacing: 2px;">
+              <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-link text-decoration-none p-0 text-secondary" title="Show/Hide" onclick="toggleCardPassword('pwd-{{ cred.id }}', this)">
+                  <i class="fa-regular fa-eye"></i>
+                </button>
+                <button class="btn btn-sm btn-link text-decoration-none p-0 text-secondary copy-btn" title="Copy password" onclick="copyToClipboard('{{ cred.password }}', this)">
+                  <i class="fa-regular fa-copy"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Notes preview if present -->
+          {% if cred.notes %}
+          <div class="small text-muted text-truncate mb-2" title="{{ cred.notes }}">
+            <i class="fa-regular fa-note-sticky me-1"></i>{{ cred.notes }}
+          </div>
+          {% endif %}
+
+          <div class="mt-auto text-muted" style="font-size: 0.72rem;">
+            Updated {{ cred.updated_at.strftime('%Y-%m-%d') if cred.updated_at else '' }}
+          </div>
+
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Empty state -->
+  <div id="vaultEmptyState" class="text-center py-5 {% if credentials|length > 0 %}d-none{% endif %}">
+    <div class="display-3 mb-3 text-muted">🔐</div>
+    <h4 class="fw-bold">No accounts saved yet</h4>
+    <p class="text-muted small mb-3">Add your platform accounts, usernames, and passwords to keep them secure and accessible.</p>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addCredModal">
+      <i class="fa-solid fa-plus me-1"></i> Add First Account
+    </button>
+  </div>
+  {% endif %}
+
+</div>
+
+{# ────────────────────────────────────────────────────────────────────────── #}
+{# MODALS                                                                     #}
+{# ────────────────────────────────────────────────────────────────────────── #}
+
+<!-- Add Credential Modal -->
+<div class="modal fade" id="addCredModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg rounded-4">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title fw-bold">
+          <i class="fa-solid fa-plus-circle text-primary me-2"></i>Add New Account
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form id="addCredForm" onsubmit="handleAddCredential(event)">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Platform Name <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="addPlatform" placeholder="e.g. Google, GitHub, Netflix, Work Portal" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Email or Number <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="addIdentifier" placeholder="e.g. user@gmail.com or +1 555-0123" required>
+          </div>
+          <div class="mb-3">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <label class="form-label small fw-semibold mb-0">Password <span class="text-danger">*</span></label>
+              <button type="button" class="btn btn-link btn-sm text-decoration-none p-0" onclick="generateRandomPassword('addPassword')">
+                <i class="fa-solid fa-wand-magic-sparkles me-1"></i>Generate Strong
+              </button>
+            </div>
+            <div class="input-group">
+              <input type="password" class="form-control font-monospace" id="addPassword" placeholder="Enter or generate password" required>
+              <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('addPassword', this)">
+                <i class="fa-regular fa-eye"></i>
+              </button>
+            </div>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small fw-semibold">Notes (Optional)</label>
+            <textarea class="form-control" id="addNotes" rows="2" placeholder="Recovery email, PIN, security questions..."></textarea>
+          </div>
+          <div class="alert alert-danger py-2 small d-none" id="addCredError"></div>
+        </div>
+        <div class="modal-footer border-0 pt-0">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary fw-semibold" id="addCredSubmitBtn">
+            <i class="fa-solid fa-save me-1"></i>Save Account
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Credential Modal -->
+<div class="modal fade" id="editCredModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg rounded-4">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title fw-bold">
+          <i class="fa-solid fa-pen-to-square text-primary me-2"></i>Edit Account
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form id="editCredForm" onsubmit="handleEditCredential(event)">
+        <input type="hidden" id="editCredId">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Platform Name <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="editPlatform" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Email or Number <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="editIdentifier" required>
+          </div>
+          <div class="mb-3">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <label class="form-label small fw-semibold mb-0">Password <span class="text-danger">*</span></label>
+              <button type="button" class="btn btn-link btn-sm text-decoration-none p-0" onclick="generateRandomPassword('editPassword')">
+                <i class="fa-solid fa-wand-magic-sparkles me-1"></i>Generate Strong
+              </button>
+            </div>
+            <div class="input-group">
+              <input type="password" class="form-control font-monospace" id="editPassword" required>
+              <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('editPassword', this)">
+                <i class="fa-regular fa-eye"></i>
+              </button>
+            </div>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small fw-semibold">Notes (Optional)</label>
+            <textarea class="form-control" id="editNotes" rows="2"></textarea>
+          </div>
+          <div class="alert alert-danger py-2 small d-none" id="editCredError"></div>
+        </div>
+        <div class="modal-footer border-0 pt-0">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary fw-semibold" id="editCredSubmitBtn">
+            <i class="fa-solid fa-check me-1"></i>Update Account
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Credential Confirmation Modal -->
+<div class="modal fade" id="deleteCredModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg rounded-4">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title text-danger fw-bold">
+          <i class="fa-solid fa-triangle-exclamation me-2"></i>Delete Account
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p>Are you sure you want to permanently delete credentials for <strong id="deleteCredPlatform"></strong>?</p>
+        <p class="text-muted small mb-0">This action cannot be undone.</p>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger fw-semibold" id="confirmDeleteCredBtn" onclick="confirmDeleteCredential()">
+          <i class="fa-solid fa-trash me-1"></i>Delete
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Change Master Password Modal -->
+<div class="modal fade" id="changeMasterModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg rounded-4">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title fw-bold">
+          <i class="fa-solid fa-key text-primary me-2"></i>Change Master Password
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form id="changeMasterForm" onsubmit="handleChangeMaster(event)">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Current Master Password</label>
+            <input type="password" class="form-control" id="changeCurrentPassword" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">New Master Password</label>
+            <input type="password" class="form-control" id="changeNewPassword" minlength="4" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Confirm New Master Password</label>
+            <input type="password" class="form-control" id="changeConfirmPassword" minlength="4" required>
+          </div>
+          <div class="alert alert-danger py-2 small d-none" id="changeMasterError"></div>
+        </div>
+        <div class="modal-footer border-0 pt-0">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary fw-semibold" id="changeMasterSubmitBtn">
+            Update Password
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let deleteTargetCredId = null;
+
+// ── Toggle Password Visibility ──────────────────────────────────────────────
+function togglePasswordVisibility(inputId, btn) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  const isPassword = input.type === 'password';
+  input.type = isPassword ? 'text' : 'password';
+  const icon = btn.querySelector('i');
+  if (icon) {
+    icon.className = isPassword ? 'fa-regular fa-eye-slash' : 'fa-regular fa-eye';
+  }
+}
+
+function toggleCardPassword(inputId, btn) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  const isPassword = input.type === 'password';
+  input.type = isPassword ? 'text' : 'password';
+  input.style.letterSpacing = isPassword ? 'normal' : '2px';
+  const icon = btn.querySelector('i');
+  if (icon) {
+    icon.className = isPassword ? 'fa-regular fa-eye-slash' : 'fa-regular fa-eye';
+  }
+}
+
+// ── Copy to Clipboard with Visual Feedback ──────────────────────────────────
+function copyToClipboard(text, btn) {
+  if (!navigator.clipboard) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+  } else {
+    navigator.clipboard.writeText(text);
+  }
+
+  const icon = btn.querySelector('i');
+  if (icon) {
+    const originalClass = icon.className;
+    icon.className = 'fa-solid fa-check text-success';
+    setTimeout(() => {
+      icon.className = originalClass;
+    }, 1500);
+  }
+}
+
+// ── Random Password Generator ───────────────────────────────────────────────
+function generateRandomPassword(targetInputId) {
+  const chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%^&*()_+';
+  let pwd = '';
+  for (let i = 0; i < 16; i++) {
+    pwd += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  const input = document.getElementById(targetInputId);
+  if (input) {
+    input.value = pwd;
+    input.type = 'text'; // Show when generated so user can see it
+  }
+}
+
+// ── 1. Setup Master Password ───────────────────────────────────────────────
+function handleVaultSetup(e) {
+  e.preventDefault();
+  const pwd = document.getElementById('setupPassword').value;
+  const confirm = document.getElementById('setupConfirmPassword').value;
+  const errAlert = document.getElementById('setupErrorAlert');
+  const btn = document.getElementById('setupSubmitBtn');
+
+  if (pwd !== confirm) {
+    errAlert.textContent = 'Passwords do not match.';
+    errAlert.classList.remove('d-none');
+    return;
+  }
+  errAlert.classList.add('d-none');
+  btn.disabled = true;
+
+  fetch('/api/vault/setup', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: pwd, confirm_password: confirm })
+  })
+  .then(r => r.json())
+  .then(data => {
+    btn.disabled = false;
+    if (data.error) {
+      errAlert.textContent = data.error;
+      errAlert.classList.remove('d-none');
+    } else {
+      window.location.reload();
+    }
+  })
+  .catch(() => {
+    btn.disabled = false;
+    errAlert.textContent = 'Connection error. Please try again.';
+    errAlert.classList.remove('d-none');
+  });
+}
+
+// ── 2. Unlock Vault ────────────────────────────────────────────────────────
+function handleVaultUnlock(e) {
+  e.preventDefault();
+  const pwd = document.getElementById('unlockPassword').value;
+  const errAlert = document.getElementById('unlockErrorAlert');
+  const btn = document.getElementById('unlockSubmitBtn');
+
+  errAlert.classList.add('d-none');
+  btn.disabled = true;
+
+  fetch('/api/vault/unlock', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: pwd })
+  })
+  .then(r => r.json().then(data => ({ status: r.status, data })))
+  .then(({ status, data }) => {
+    btn.disabled = false;
+    if (status !== 200 || data.error) {
+      errAlert.textContent = data.error || 'Incorrect master password.';
+      errAlert.classList.remove('d-none');
+      document.getElementById('unlockPassword').focus();
+    } else {
+      window.location.reload();
+    }
+  })
+  .catch(() => {
+    btn.disabled = false;
+    errAlert.textContent = 'Failed to connect. Please try again.';
+    errAlert.classList.remove('d-none');
+  });
+}
+
+// ── 3. Lock Vault ──────────────────────────────────────────────────────────
+function lockVault() {
+  fetch('/api/vault/lock', { method: 'POST' })
+    .then(() => window.location.reload())
+    .catch(() => window.location.reload());
+}
+
+// ── 4. Add Credential ──────────────────────────────────────────────────────
+function handleAddCredential(e) {
+  e.preventDefault();
+  const platform = document.getElementById('addPlatform').value.trim();
+  const identifier = document.getElementById('addIdentifier').value.trim();
+  const password = document.getElementById('addPassword').value;
+  const notes = document.getElementById('addNotes').value.trim();
+  const errAlert = document.getElementById('addCredError');
+  const btn = document.getElementById('addCredSubmitBtn');
+
+  errAlert.classList.add('d-none');
+  btn.disabled = true;
+
+  fetch('/api/vault/credentials', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ platform, identifier, password, notes })
+  })
+  .then(r => r.json().then(data => ({ status: r.status, data })))
+  .then(({ status, data }) => {
+    btn.disabled = false;
+    if (status !== 201 || data.error) {
+      errAlert.textContent = data.error || 'Failed to save account.';
+      errAlert.classList.remove('d-none');
+    } else {
+      const modal = bootstrap.Modal.getInstance(document.getElementById('addCredModal'));
+      if (modal) modal.hide();
+      window.location.reload();
+    }
+  })
+  .catch(() => {
+    btn.disabled = false;
+    errAlert.textContent = 'Error connecting to server.';
+    errAlert.classList.remove('d-none');
+  });
+}
+
+// ── 5. Edit Credential ─────────────────────────────────────────────────────
+function openEditModal(id, platform, identifier, password, notes) {
+  document.getElementById('editCredId').value = id;
+  document.getElementById('editPlatform').value = platform;
+  document.getElementById('editIdentifier').value = identifier;
+  document.getElementById('editPassword').value = password;
+  document.getElementById('editNotes').value = notes || '';
+  document.getElementById('editCredError').classList.add('d-none');
+
+  const modal = new bootstrap.Modal(document.getElementById('editCredModal'));
+  modal.show();
+}
+
+function handleEditCredential(e) {
+  e.preventDefault();
+  const id = document.getElementById('editCredId').value;
+  const platform = document.getElementById('editPlatform').value.trim();
+  const identifier = document.getElementById('editIdentifier').value.trim();
+  const password = document.getElementById('editPassword').value;
+  const notes = document.getElementById('editNotes').value.trim();
+  const errAlert = document.getElementById('editCredError');
+  const btn = document.getElementById('editCredSubmitBtn');
+
+  errAlert.classList.add('d-none');
+  btn.disabled = true;
+
+  fetch('/api/vault/credentials/' + id, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ platform, identifier, password, notes })
+  })
+  .then(r => r.json().then(data => ({ status: r.status, data })))
+  .then(({ status, data }) => {
+    btn.disabled = false;
+    if (status !== 200 || data.error) {
+      errAlert.textContent = data.error || 'Failed to update account.';
+      errAlert.classList.remove('d-none');
+    } else {
+      const modal = bootstrap.Modal.getInstance(document.getElementById('editCredModal'));
+      if (modal) modal.hide();
+      window.location.reload();
+    }
+  })
+  .catch(() => {
+    btn.disabled = false;
+    errAlert.textContent = 'Error updating account.';
+    errAlert.classList.remove('d-none');
+  });
+}
+
+// ── 6. Delete Credential ───────────────────────────────────────────────────
+function openDeleteModal(id, platform) {
+  deleteTargetCredId = id;
+  document.getElementById('deleteCredPlatform').textContent = '"' + platform + '"';
+  const modal = new bootstrap.Modal(document.getElementById('deleteCredModal'));
+  modal.show();
+}
+
+function confirmDeleteCredential() {
+  if (!deleteTargetCredId) return;
+  const btn = document.getElementById('confirmDeleteCredBtn');
+  btn.disabled = true;
+
+  fetch('/api/vault/credentials/' + deleteTargetCredId, { method: 'DELETE' })
+    .then(r => r.json())
+    .then(() => {
+      window.location.reload();
+    })
+    .catch(() => {
+      btn.disabled = false;
+      alert('Failed to delete account.');
+    });
+}
+
+// ── 7. Change Master Password ──────────────────────────────────────────────
+function handleChangeMaster(e) {
+  e.preventDefault();
+  const current_password = document.getElementById('changeCurrentPassword').value;
+  const new_password = document.getElementById('changeNewPassword').value;
+  const confirm_password = document.getElementById('changeConfirmPassword').value;
+  const errAlert = document.getElementById('changeMasterError');
+  const btn = document.getElementById('changeMasterSubmitBtn');
+
+  if (new_password !== confirm_password) {
+    errAlert.textContent = 'New passwords do not match.';
+    errAlert.classList.remove('d-none');
+    return;
+  }
+
+  errAlert.classList.add('d-none');
+  btn.disabled = true;
+
+  fetch('/api/vault/change-master', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ current_password, new_password, confirm_password })
+  })
+  .then(r => r.json().then(data => ({ status: r.status, data })))
+  .then(({ status, data }) => {
+    btn.disabled = false;
+    if (status !== 200 || data.error) {
+      errAlert.textContent = data.error || 'Failed to change password.';
+      errAlert.classList.remove('d-none');
+    } else {
+      alert('Master password changed successfully!');
+      const modal = bootstrap.Modal.getInstance(document.getElementById('changeMasterModal'));
+      if (modal) modal.hide();
+      document.getElementById('changeMasterForm').reset();
+    }
+  })
+  .catch(() => {
+    btn.disabled = false;
+    errAlert.textContent = 'Error connecting to server.';
+    errAlert.classList.remove('d-none');
+  });
+}
+
+// ── 8. Filter Vault Items Live ─────────────────────────────────────────────
+function filterVaultItems() {
+  const query = (document.getElementById('vaultSearchInput').value || '').toLowerCase().trim();
+  const cards = document.querySelectorAll('.cred-card-col');
+  let visibleCount = 0;
+
+  cards.forEach(card => {
+    const platform = card.dataset.platform || '';
+    const identifier = card.dataset.identifier || '';
+    if (!query || platform.includes(query) || identifier.includes(query)) {
+      card.style.display = '';
+      visibleCount++;
+    } else {
+      card.style.display = 'none';
+    }
+  });
+
+  const countEl = document.getElementById('vaultTotalCount');
+  if (countEl) countEl.textContent = visibleCount;
+}
+
+function clearVaultSearch() {
+  const input = document.getElementById('vaultSearchInput');
+  if (input) {
+    input.value = '';
+    filterVaultItems();
+  }
+}
+</script>
+{% endblock %}

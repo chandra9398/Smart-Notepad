@@ -1,0 +1,1161 @@
+{% extends "base.html" %}
+
+{% block title %}My Files – Smart Notepad{% endblock %}
+
+{% block content %}
+<div class="container py-2" id="filesContainer">
+
+  <!-- Header -->
+  <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+    <div>
+      <h2 class="fw-bold mb-1 d-flex align-items-center gap-2">
+        <span class="text-primary"><i class="fa-solid fa-folder-open"></i></span>
+        My Files
+      </h2>
+      <p class="text-muted small mb-0">View, edit, save, and download Notepad files, Excel spreadsheets, CSVs, PDFs, and images.</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <button class="btn btn-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#uploadModal">
+        <i class="fa-solid fa-cloud-arrow-up me-1"></i> Upload Files
+      </button>
+      <div class="dropdown">
+        <button class="btn btn-outline-primary shadow-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+          <i class="fa-solid fa-plus me-1"></i> Create New
+        </button>
+        <ul class="dropdown-menu shadow-sm border-0">
+          <li>
+            <button class="dropdown-item" onclick="openNewFileModal('notepad')">
+              <i class="fa-regular fa-file-lines me-2 text-primary"></i>Notepad / Text File
+            </button>
+          </li>
+          <li>
+            <button class="dropdown-item" onclick="openNewFileModal('csv')">
+              <i class="fa-solid fa-table me-2 text-success"></i>CSV Spreadsheet
+            </button>
+          </li>
+          <li>
+            <button class="dropdown-item" onclick="openNewFileModal('pdf')">
+              <i class="fa-solid fa-file-pdf me-2 text-danger"></i>PDF Document
+            </button>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filter Category Tabs & Live Search -->
+  <div class="row g-3 align-items-center mb-4">
+    <div class="col-12 col-md-8">
+      <div class="btn-group w-100 flex-wrap" role="group" aria-label="File categories">
+        <button type="button" class="btn btn-outline-secondary category-filter-btn {% if current_category == 'all' or not current_category %}active btn-primary text-white{% endif %}" data-cat="all" onclick="filterCategory('all')">
+          <i class="fa-solid fa-layer-group me-1"></i> All Files
+        </button>
+        <button type="button" class="btn btn-outline-secondary category-filter-btn {% if current_category == 'notepad' %}active btn-primary text-white{% endif %}" data-cat="notepad" onclick="filterCategory('notepad')">
+          <i class="fa-regular fa-file-lines me-1 text-primary"></i> Notepad / Text
+        </button>
+        <button type="button" class="btn btn-outline-secondary category-filter-btn {% if current_category == 'csv' or current_category == 'excel' %}active btn-primary text-white{% endif %}" data-cat="spreadsheets" onclick="filterCategory('spreadsheets')">
+          <i class="fa-solid fa-table-cells me-1 text-success"></i> Excel &amp; CSV
+        </button>
+        <button type="button" class="btn btn-outline-secondary category-filter-btn {% if current_category == 'pdf' %}active btn-primary text-white{% endif %}" data-cat="pdf" onclick="filterCategory('pdf')">
+          <i class="fa-solid fa-file-pdf me-1 text-danger"></i> PDFs
+        </button>
+        <button type="button" class="btn btn-outline-secondary category-filter-btn {% if current_category == 'image' %}active btn-primary text-white{% endif %}" data-cat="image" onclick="filterCategory('image')">
+          <i class="fa-regular fa-image me-1 text-warning"></i> Images
+        </button>
+      </div>
+    </div>
+    <div class="col-12 col-md-4">
+      <div class="input-group shadow-sm">
+        <span class="input-group-text bg-body border-end-0">
+          <i class="fa-solid fa-magnifying-glass text-muted"></i>
+        </span>
+        <input type="text" class="form-control border-start-0 ps-0" id="fileSearchInput" placeholder="Search files…" oninput="filterFilesLive()">
+        <button class="btn btn-outline-secondary" type="button" onclick="clearFileSearch()">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Files Grid -->
+  <div class="row g-3" id="filesGrid">
+    {% for file in files %}
+    <div class="col-12 col-md-6 col-lg-4 file-card-col" 
+         data-filename="{{ file.original_name|lower }}" 
+         data-filetype="{{ file.file_type }}" 
+         data-ext="{{ file.extension }}">
+      <div class="card h-100 border-0 shadow-sm rounded-3 overflow-hidden file-card">
+        
+        <!-- Image Preview Header if Image -->
+        {% if file.file_type == 'image' %}
+        <div class="image-thumbnail-wrapper bg-body-tertiary text-center p-2 position-relative cursor-pointer" onclick="viewImage({{ file.id }}, '{{ file.original_name|e }}')" style="height: 160px; overflow: hidden; display: flex; align-items: center; justify-content: center;">
+          <img src="/api/files/{{ file.id }}/raw" alt="{{ file.original_name }}" class="img-fluid rounded" style="max-height: 100%; object-fit: contain;">
+          <div class="image-overlay position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-dark bg-opacity-25 opacity-0 hover-opacity-100 transition">
+            <span class="badge bg-dark bg-opacity-75"><i class="fa-solid fa-expand me-1"></i>View Fullscreen</span>
+          </div>
+        </div>
+        {% endif %}
+
+        <div class="card-body d-flex flex-column p-3">
+          <!-- Title & Type Badge -->
+          <div class="d-flex align-items-start gap-2 mb-2">
+            <div class="file-icon-badge rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width: 42px; height: 42px; font-size: 1.2rem;
+              {% if file.file_type == 'notepad' %}background: rgba(79, 70, 229, 0.12); color: #4f46e5;
+              {% elif file.file_type == 'csv' %}background: rgba(16, 185, 129, 0.12); color: #10b981;
+              {% elif file.file_type == 'excel' %}background: rgba(5, 150, 105, 0.12); color: #059669;
+              {% elif file.file_type == 'pdf' %}background: rgba(239, 68, 68, 0.12); color: #ef4444;
+              {% elif file.file_type == 'image' %}background: rgba(245, 158, 11, 0.12); color: #f59e0b;
+              {% else %}background: rgba(107, 114, 128, 0.12); color: #6b7280;{% endif %}">
+              {% if file.file_type == 'notepad' %}<i class="fa-regular fa-file-code"></i>
+              {% elif file.file_type == 'csv' %}<i class="fa-solid fa-table"></i>
+              {% elif file.file_type == 'excel' %}<i class="fa-solid fa-file-excel"></i>
+              {% elif file.file_type == 'pdf' %}<i class="fa-solid fa-file-pdf"></i>
+              {% elif file.file_type == 'image' %}<i class="fa-regular fa-image"></i>
+              {% else %}<i class="fa-regular fa-file"></i>{% endif %}
+            </div>
+            <div class="flex-grow-1 overflow-hidden">
+              <h6 class="fw-bold mb-0 text-truncate" title="{{ file.original_name }}">{{ file.original_name }}</h6>
+              <div class="text-muted small">
+                <span class="badge text-uppercase bg-secondary-subtle text-secondary me-1" style="font-size: 0.68rem;">{{ file.extension or 'FILE' }}</span>
+                <span>{{ (file.file_size / 1024)|round(1) }} KB</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Metadata -->
+          <div class="text-muted mb-3 small" style="font-size: 0.75rem;">
+            <i class="fa-regular fa-clock me-1"></i>Updated {{ file.updated_at.strftime('%Y-%m-%d') if file.updated_at else '' }}
+          </div>
+
+          <!-- Card Action Buttons -->
+          <div class="mt-auto pt-2 border-top d-flex gap-2 justify-content-between align-items-center">
+            <div class="d-flex gap-1 flex-wrap">
+              <!-- View / Edit Button based on type -->
+              {% if file.file_type in ['notepad', 'csv'] %}
+              <button class="btn btn-sm btn-primary" onclick="openTextEditor({{ file.id }}, '{{ file.original_name|e }}', '{{ file.file_type }}')">
+                <i class="fa-solid fa-pen-to-square me-1"></i>Edit
+              </button>
+              {% elif file.file_type == 'excel' %}
+              <button class="btn btn-sm btn-success" onclick="openExcelEditor({{ file.id }}, '{{ file.original_name|e }}', true)">
+                <i class="fa-solid fa-pen-to-square me-1"></i>Edit Excel
+              </button>
+              <button class="btn btn-sm btn-outline-success" onclick="openExcelEditor({{ file.id }}, '{{ file.original_name|e }}', false)">
+                <i class="fa-solid fa-table me-1"></i>View
+              </button>
+              {% elif file.file_type == 'pdf' %}
+              <button class="btn btn-sm btn-danger" onclick="viewPdfDocument({{ file.id }}, '{{ file.original_name|e }}')">
+                <i class="fa-solid fa-eye me-1"></i>Read PDF
+              </button>
+              <button class="btn btn-sm btn-outline-danger" onclick="openPdfEditor({{ file.id }}, '{{ file.original_name|e }}')">
+                <i class="fa-solid fa-pen-to-square me-1"></i>Edit PDF
+              </button>
+              {% elif file.file_type == 'image' %}
+              <button class="btn btn-sm btn-warning text-dark" onclick="viewImage({{ file.id }}, '{{ file.original_name|e }}')">
+                <i class="fa-solid fa-eye me-1"></i>View
+              </button>
+              {% endif %}
+
+              <!-- Download Button -->
+              <a href="/api/files/{{ file.id }}/download" class="btn btn-sm btn-outline-secondary" title="Download file">
+                <i class="fa-solid fa-download me-1"></i>Download
+              </a>
+            </div>
+
+            <!-- Delete Button -->
+            <button class="btn btn-sm btn-outline-danger" title="Delete file" onclick="openDeleteFileModal({{ file.id }}, '{{ file.original_name|e }}')">
+              <i class="fa-solid fa-trash"></i>
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Empty state -->
+  <div id="filesEmptyState" class="text-center py-5 {% if files|length > 0 %}d-none{% endif %}">
+    <div class="display-3 mb-3 text-muted">📂</div>
+    <h4 class="fw-bold">No files found</h4>
+    <p class="text-muted small mb-3">Upload your notepad files, spreadsheets, CSVs, PDFs, or images to manage, edit, and view them here.</p>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadModal">
+      <i class="fa-solid fa-cloud-arrow-up me-1"></i> Upload Your First File
+    </button>
+  </div>
+
+</div>
+
+{# ────────────────────────────────────────────────────────────────────────── #}
+{# MODALS                                                                     #}
+{# ────────────────────────────────────────────────────────────────────────── #}
+
+<!-- 1. Upload Files Modal -->
+<div class="modal fade" id="uploadModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg rounded-4">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title fw-bold">
+          <i class="fa-solid fa-cloud-arrow-up text-primary me-2"></i>Upload Files
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form id="uploadFilesForm" onsubmit="handleFilesUpload(event)">
+        <div class="modal-body">
+          <p class="text-muted small mb-3">
+            Supports Notepad/text files (<code>.txt, .json, .py, .md</code>), spreadsheets (<code>.xlsx, .csv</code>), PDFs (<code>.pdf</code>), and all image formats (<code>.png, .jpg, .webp, .svg</code>).
+          </p>
+
+          <div class="p-4 border border-2 border-dashed rounded-3 text-center mb-3 bg-body-tertiary position-relative" id="dropZone">
+            <i class="fa-solid fa-folder-open text-primary fs-1 mb-2"></i>
+            <h6 class="fw-semibold mb-1">Drag and drop files here</h6>
+            <div class="text-muted small mb-3">or click to browse from device</div>
+            <input type="file" class="form-control" id="filesInput" multiple required>
+          </div>
+
+          <div class="alert alert-danger py-2 small d-none" id="uploadErrorAlert"></div>
+          <div class="progress d-none mb-2" id="uploadProgressBar" style="height: 6px;">
+            <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%"></div>
+          </div>
+        </div>
+        <div class="modal-footer border-0 pt-0">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary fw-semibold" id="uploadSubmitBtn">
+            <i class="fa-solid fa-upload me-1"></i>Start Upload
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- 2. Create New File Modal -->
+<div class="modal fade" id="newFileModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg rounded-4">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title fw-bold" id="newFileModalTitle">
+          <i class="fa-solid fa-plus text-primary me-2"></i>Create New File
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form id="newFileForm" onsubmit="handleCreateNewFile(event)">
+        <input type="hidden" id="newFileType" value="notepad">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">File Name <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="newFileName" placeholder="e.g. document.txt or data.csv" required>
+            <div class="form-text small" id="newFileNameHint">Extension will be added automatically if omitted.</div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Initial Content</label>
+            <textarea class="form-control font-monospace" id="newFileContent" rows="5" placeholder="Enter text or CSV headers..."></textarea>
+          </div>
+          <div class="alert alert-danger py-2 small d-none" id="newFileError"></div>
+        </div>
+        <div class="modal-footer border-0 pt-0">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary fw-semibold" id="newFileSubmitBtn">
+            <i class="fa-solid fa-check me-1"></i>Create File
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- 3. Text & Notepad / CSV Editor Modal -->
+<div class="modal fade" id="textEditorModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content border-0 shadow-lg rounded-4">
+      <div class="modal-header border-0 pb-2 align-items-center">
+        <div class="d-flex align-items-center gap-2">
+          <div class="badge bg-primary fs-6 px-2 py-1"><i class="fa-regular fa-file-lines"></i></div>
+          <div>
+            <h5 class="modal-title fw-bold mb-0" id="editorFileName">Editor</h5>
+            <small class="text-muted" id="editorFileMeta">Loading...</small>
+          </div>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+          <span class="badge bg-secondary" id="editorSaveStatus">Ready</span>
+          <button type="button" class="btn btn-primary btn-sm fw-semibold" onclick="saveEditorContent()">
+            <i class="fa-solid fa-floppy-disk me-1"></i>Save File
+          </button>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+      </div>
+      <div class="modal-body p-3">
+        <!-- Editor Toolbar -->
+        <div class="d-flex justify-content-between align-items-center mb-2 px-1">
+          <div class="small text-muted" id="editorStats">0 lines · 0 chars</div>
+          <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="formatEditorContent('upper')" title="UPPERCASE">AA</button>
+            <button class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="formatEditorContent('lower')" title="lowercase">aa</button>
+            <button class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="copyEditorContent()" title="Copy all"><i class="fa-regular fa-copy"></i> Copy</button>
+          </div>
+        </div>
+        <textarea class="form-control font-monospace border-0 bg-body-tertiary p-3 rounded-3" 
+                  id="editorTextArea" 
+                  rows="18" 
+                  style="font-size: 0.95rem; line-height: 1.6; resize: vertical; outline: none;"
+                  oninput="onEditorInput()"></textarea>
+      </div>
+      <div class="modal-footer border-0 pt-0 d-flex justify-content-between">
+        <div class="small text-muted"><kbd>Ctrl+S</kbd> to save changes</div>
+        <div class="d-flex gap-2">
+          <a href="#" class="btn btn-outline-secondary btn-sm" id="editorDownloadBtn">
+            <i class="fa-solid fa-download me-1"></i>Download File
+          </a>
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 4. Excel & Spreadsheet Viewer & LIVE EDITOR Modal -->
+<div class="modal fade" id="excelViewerModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content border-0 shadow-lg rounded-4">
+      <div class="modal-header border-0 pb-2">
+        <div class="d-flex align-items-center gap-2">
+          <div class="badge bg-success fs-6 px-2 py-1"><i class="fa-solid fa-file-excel"></i></div>
+          <div>
+            <h5 class="modal-title fw-bold mb-0" id="excelViewerTitle">Excel Spreadsheet Editor</h5>
+            <small class="text-muted" id="excelViewerMeta">Editable workbook</small>
+          </div>
+        </div>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <span class="badge bg-secondary" id="excelSaveStatus">Ready</span>
+          <button type="button" class="btn btn-sm btn-success fw-semibold" id="excelSaveBtn" onclick="saveExcelWorkbook()">
+            <i class="fa-solid fa-floppy-disk me-1"></i>Save Excel
+          </button>
+          <a href="#" class="btn btn-sm btn-outline-secondary" id="excelDownloadBtn">
+            <i class="fa-solid fa-download me-1"></i>Download
+          </a>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+      </div>
+      <div class="modal-body p-3">
+        <!-- Excel Edit Controls & Sheet Tabs -->
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3 bg-body-tertiary p-2 rounded">
+          <ul class="nav nav-pills mb-0" id="sheetTabs"></ul>
+          
+          <div class="d-flex gap-2 align-items-center">
+            <button class="btn btn-sm btn-outline-primary" onclick="addExcelRow()" title="Insert new row at bottom">
+              <i class="fa-solid fa-plus me-1"></i>Add Row
+            </button>
+            <button class="btn btn-sm btn-outline-primary" onclick="addExcelColumn()" title="Insert new column at right">
+              <i class="fa-solid fa-plus me-1"></i>Add Column
+            </button>
+            <button class="btn btn-sm btn-outline-danger" onclick="deleteExcelSelectedRow()" title="Delete last row">
+              <i class="fa-solid fa-minus me-1"></i>Delete Row
+            </button>
+          </div>
+        </div>
+        
+        <!-- Live Table Filter -->
+        <div class="mb-3">
+          <input type="text" class="form-control form-control-sm" id="sheetSearchInput" placeholder="Filter rows in sheet…" oninput="filterSheetTable()">
+        </div>
+
+        <!-- Interactive Editable Table -->
+        <div class="table-responsive rounded border" style="max-height: 480px;">
+          <table class="table table-sm table-bordered table-hover align-middle mb-0" id="excelTable">
+            <thead class="table-dark sticky-top" id="excelThead"></thead>
+            <tbody id="excelTbody"></tbody>
+          </table>
+        </div>
+        <div class="form-text mt-2 small text-muted">
+          <i class="fa-solid fa-circle-info me-1"></i>Click any cell to edit its value directly. Click <strong>Save Excel</strong> when finished.
+        </div>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 5. PDF Reader & Editor Modal -->
+<div class="modal fade" id="pdfViewerModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content border-0 shadow-lg rounded-4">
+      <div class="modal-header border-0 pb-2">
+        <div class="d-flex align-items-center gap-2">
+          <div class="badge bg-danger fs-6 px-2 py-1"><i class="fa-solid fa-file-pdf"></i></div>
+          <div>
+            <h5 class="modal-title fw-bold mb-0" id="pdfViewerTitle">PDF Document</h5>
+            <small class="text-muted" id="pdfViewerMeta">PDF Reader &amp; Editor</small>
+          </div>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+          <div class="btn-group btn-group-sm" role="group">
+            <button type="button" class="btn btn-outline-danger active" id="pdfModeViewBtn" onclick="switchPdfMode('view')">
+              <i class="fa-solid fa-book-open me-1"></i>Read View
+            </button>
+            <button type="button" class="btn btn-outline-danger" id="pdfModeEditBtn" onclick="switchPdfMode('edit')">
+              <i class="fa-solid fa-pen-nib me-1"></i>Edit / Annotate
+            </button>
+          </div>
+          <a href="#" class="btn btn-sm btn-danger" id="pdfDownloadBtn" download>
+            <i class="fa-solid fa-download me-1"></i>Download
+          </a>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+      </div>
+      <div class="modal-body p-3">
+        
+        <!-- Tab 1: Embedded Native PDF Reader -->
+        <div id="pdfViewContainer">
+          <iframe src="" id="pdfIframe" style="width: 100%; height: 75vh; border: none; border-radius: 8px;" class="shadow-sm"></iframe>
+        </div>
+
+        <!-- Tab 2: PDF Editor / Annotator -->
+        <div id="pdfEditContainer" class="d-none">
+          <div class="card border-0 bg-body-tertiary mb-3">
+            <div class="card-body">
+              <h6 class="fw-bold mb-2"><i class="fa-solid fa-pen me-1 text-danger"></i>Add Text / Watermark / Notes to PDF</h6>
+              <p class="text-muted small mb-3">Add custom text or notes to your PDF pages and permanently save the updated document.</p>
+              
+              <div class="row g-2 mb-3">
+                <div class="col-12 col-md-6">
+                  <label class="form-label small fw-semibold">Text to Add</label>
+                  <input type="text" class="form-control form-control-sm" id="pdfAddTextInput" placeholder="e.g. APPROVED, CONFIDENTIAL, or notes...">
+                </div>
+                <div class="col-6 col-md-2">
+                  <label class="form-label small fw-semibold">Page Number</label>
+                  <input type="number" class="form-control form-control-sm" id="pdfPageNumber" value="1" min="1">
+                </div>
+                <div class="col-6 col-md-2">
+                  <label class="form-label small fw-semibold">Font Size</label>
+                  <input type="number" class="form-control form-control-sm" id="pdfFontSize" value="18" min="8" max="72">
+                </div>
+                <div class="col-12 col-md-2">
+                  <label class="form-label small fw-semibold">Position</label>
+                  <select class="form-select form-select-sm" id="pdfPosition">
+                    <option value="top">Header (Top)</option>
+                    <option value="bottom" selected>Footer (Bottom)</option>
+                    <option value="center">Watermark (Center)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="d-flex justify-content-between align-items-center">
+                <span class="small" id="pdfEditStatus"></span>
+                <button type="button" class="btn btn-danger btn-sm fw-semibold" id="pdfApplySaveBtn" onclick="applyPdfEditAndSave()">
+                  <i class="fa-solid fa-floppy-disk me-1"></i>Apply &amp; Save PDF
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 6. Image Lightbox Modal -->
+<div class="modal fade" id="imageLightboxModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg rounded-4 bg-body">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title fw-bold text-truncate" id="imageLightboxTitle">Image Preview</h5>
+        <div class="d-flex gap-2">
+          <a href="#" class="btn btn-outline-secondary btn-sm" id="imageLightboxDownloadBtn" download>
+            <i class="fa-solid fa-download me-1"></i>Download
+          </a>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+      </div>
+      <div class="modal-body text-center p-3">
+        <div class="p-2 rounded bg-body-tertiary d-flex align-items-center justify-content-center" style="min-height: 350px;">
+          <img src="" alt="Preview" class="img-fluid rounded shadow-sm" id="imageLightboxImg" style="max-height: 70vh; object-fit: contain;">
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 7. Delete File Confirmation Modal -->
+<div class="modal fade" id="deleteFileModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg rounded-4">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title text-danger fw-bold">
+          <i class="fa-solid fa-triangle-exclamation me-2"></i>Delete File
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p>Are you sure you want to permanently delete <strong id="deleteFileName"></strong>?</p>
+        <p class="text-muted small mb-0">This file will be completely removed from disk.</p>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger fw-semibold" id="confirmDeleteFileBtn" onclick="confirmDeleteFile()">
+          <i class="fa-solid fa-trash me-1"></i>Delete File
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<!-- SheetJS CDN for parsing & saving Excel (.xlsx, .xls) and CSVs in browser -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+<!-- PDF-lib CDN for modifying and creating PDF documents in browser -->
+<script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.9/dist/pdf-lib.min.js"></script>
+
+<script>
+let currentEditingFileId = null;
+let currentExcelFileId = null;
+let currentPdfFileId = null;
+let deleteTargetFileId = null;
+let currentWorkbookData = null;
+let activeSheetName = '';
+let isExcelEditMode = true;
+
+// ── 1. Upload Files ─────────────────────────────────────────────────────────
+function handleFilesUpload(e) {
+  e.preventDefault();
+  const fileInput = document.getElementById('filesInput');
+  const files = fileInput.files;
+  if (!files || files.length === 0) return;
+
+  const btn = document.getElementById('uploadSubmitBtn');
+  const progress = document.getElementById('uploadProgressBar');
+  const errAlert = document.getElementById('uploadErrorAlert');
+
+  btn.disabled = true;
+  progress.classList.remove('d-none');
+  errAlert.classList.add('d-none');
+
+  const formData = new FormData();
+  for (let i = 0; i < files.length; i++) {
+    formData.append('files', files[i]);
+  }
+
+  fetch('/api/files/upload', {
+    method: 'POST',
+    body: formData
+  })
+  .then(r => r.json().then(data => ({ status: r.status, data })))
+  .then(({ status, data }) => {
+    btn.disabled = false;
+    progress.classList.add('d-none');
+    if (status !== 201 || data.error) {
+      errAlert.textContent = data.error || 'Failed to upload files.';
+      errAlert.classList.remove('d-none');
+    } else {
+      window.location.reload();
+    }
+  })
+  .catch(() => {
+    btn.disabled = false;
+    progress.classList.add('d-none');
+    errAlert.textContent = 'Upload failed. Please check network connection.';
+    errAlert.classList.remove('d-none');
+  });
+}
+
+// ── 2. Create New File ──────────────────────────────────────────────────────
+function openNewFileModal(type) {
+  document.getElementById('newFileType').value = type;
+  const title = document.getElementById('newFileModalTitle');
+  const nameInput = document.getElementById('newFileName');
+  const hint = document.getElementById('newFileNameHint');
+  const contentInput = document.getElementById('newFileContent');
+
+  if (type === 'csv') {
+    title.innerHTML = '<i class="fa-solid fa-table text-success me-2"></i>Create New CSV Spreadsheet';
+    nameInput.placeholder = 'e.g. sales_q4.csv';
+    hint.textContent = 'Will be created as a .csv spreadsheet.';
+    contentInput.placeholder = 'ID,Name,Email,Amount\n1,Alice,alice@example.com,$150\n2,Bob,bob@example.com,$280';
+  } else if (type === 'pdf') {
+    title.innerHTML = '<i class="fa-solid fa-file-pdf text-danger me-2"></i>Create New PDF Document';
+    nameInput.placeholder = 'e.g. project_proposal.pdf';
+    hint.textContent = 'Will be compiled into a .pdf document.';
+    contentInput.placeholder = 'Type your document content here...';
+  } else {
+    title.innerHTML = '<i class="fa-regular fa-file-lines text-primary me-2"></i>Create New Notepad File';
+    nameInput.placeholder = 'e.g. notes.txt or script.py';
+    hint.textContent = 'Can be .txt, .md, .json, .py, etc.';
+    contentInput.placeholder = 'Type your notes or code here...';
+  }
+  document.getElementById('newFileError').classList.add('d-none');
+  const modal = new bootstrap.Modal(document.getElementById('newFileModal'));
+  modal.show();
+}
+
+async function handleCreateNewFile(e) {
+  e.preventDefault();
+  let name = document.getElementById('newFileName').value.trim();
+  const content = document.getElementById('newFileContent').value;
+  const type = document.getElementById('newFileType').value;
+  const errAlert = document.getElementById('newFileError');
+  const btn = document.getElementById('newFileSubmitBtn');
+
+  btn.disabled = true;
+  errAlert.classList.add('d-none');
+
+  if (type === 'pdf') {
+    try {
+      if (!name.toLowerCase().endsWith('.pdf')) name += '.pdf';
+      const pdfDoc = await PDFLib.PDFDocument.create();
+      const page = pdfDoc.addPage([600, 400]);
+      const font = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
+      const boldFont = await pdfDoc.embedFont(PDFLib.StandardFonts.HelveticaBold);
+
+      page.drawText(name.replace('.pdf', ''), { x: 50, y: 350, size: 20, font: boldFont, color: PDFLib.rgb(0.1, 0.2, 0.5) });
+      page.drawText(content || 'New PDF Document generated from Smart Notepad', { x: 50, y: 300, size: 12, font, color: PDFLib.rgb(0.2, 0.2, 0.2) });
+
+      const pdfBytes = await pdfDoc.save();
+      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      const formData = new FormData();
+      formData.append('files', blob, name);
+
+      const res = await fetch('/api/files/upload', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (res.status === 201) {
+        window.location.reload();
+      } else {
+        throw new Error(data.error || 'Failed to upload generated PDF');
+      }
+    } catch (err) {
+      btn.disabled = false;
+      errAlert.textContent = 'PDF generation error: ' + err.message;
+      errAlert.classList.remove('d-none');
+    }
+    return;
+  }
+
+  fetch('/api/files/create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, content, type })
+  })
+  .then(r => r.json().then(data => ({ status: r.status, data })))
+  .then(({ status, data }) => {
+    btn.disabled = false;
+    if (status !== 201 || data.error) {
+      errAlert.textContent = data.error || 'Failed to create file.';
+      errAlert.classList.remove('d-none');
+    } else {
+      window.location.reload();
+    }
+  })
+  .catch(() => {
+    btn.disabled = false;
+    errAlert.textContent = 'Connection error.';
+    errAlert.classList.remove('d-none');
+  });
+}
+
+// ── 3. Text Editor (View / Edit / Save) ──────────────────────────────────────
+function openTextEditor(fileId, fileName, fileType) {
+  currentEditingFileId = fileId;
+  document.getElementById('editorFileName').textContent = fileName;
+  document.getElementById('editorFileMeta').textContent = 'Loading file content…';
+  document.getElementById('editorTextArea').value = '';
+  document.getElementById('editorSaveStatus').className = 'badge bg-secondary';
+  document.getElementById('editorSaveStatus').textContent = 'Loading…';
+  document.getElementById('editorDownloadBtn').href = '/api/files/' + fileId + '/download';
+
+  const modal = new bootstrap.Modal(document.getElementById('textEditorModal'));
+  modal.show();
+
+  fetch('/api/files/' + fileId + '/content')
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) {
+        document.getElementById('editorTextArea').value = 'Error: ' + data.error;
+        document.getElementById('editorSaveStatus').textContent = 'Error';
+      } else {
+        document.getElementById('editorTextArea').value = data.content;
+        document.getElementById('editorFileMeta').textContent = `${(data.size / 1024).toFixed(1)} KB · ${data.extension.toUpperCase() || 'FILE'}`;
+        document.getElementById('editorSaveStatus').className = 'badge bg-success';
+        document.getElementById('editorSaveStatus').textContent = 'Saved ✓';
+        updateEditorStats();
+      }
+    })
+    .catch(() => {
+      document.getElementById('editorTextArea').value = 'Failed to load file content.';
+      document.getElementById('editorSaveStatus').textContent = 'Error';
+    });
+}
+
+function onEditorInput() {
+  const status = document.getElementById('editorSaveStatus');
+  status.className = 'badge bg-warning text-dark';
+  status.textContent = 'Unsaved changes';
+  updateEditorStats();
+}
+
+function updateEditorStats() {
+  const val = document.getElementById('editorTextArea').value;
+  const lines = val.split('\n').length;
+  const chars = val.length;
+  document.getElementById('editorStats').textContent = `${lines} line${lines === 1 ? '' : 's'} · ${chars.toLocaleString()} chars`;
+}
+
+function saveEditorContent() {
+  if (!currentEditingFileId) return;
+  const content = document.getElementById('editorTextArea').value;
+  const status = document.getElementById('editorSaveStatus');
+
+  status.className = 'badge bg-info text-dark';
+  status.textContent = 'Saving…';
+
+  fetch('/api/files/' + currentEditingFileId, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content })
+  })
+  .then(r => r.json().then(data => ({ status: r.status, data })))
+  .then(({ status: httpStatus, data }) => {
+    if (httpStatus !== 200 || data.error) {
+      status.className = 'badge bg-danger';
+      status.textContent = 'Save failed';
+    } else {
+      status.className = 'badge bg-success';
+      status.textContent = 'Saved ✓';
+      document.getElementById('editorFileMeta').textContent = `${(data.file_size / 1024).toFixed(1)} KB · ${data.extension.toUpperCase()}`;
+    }
+  })
+  .catch(() => {
+    status.className = 'badge bg-danger';
+    status.textContent = 'Save failed';
+  });
+}
+
+function formatEditorContent(type) {
+  const ta = document.getElementById('editorTextArea');
+  if (type === 'upper') {
+    ta.value = ta.value.toUpperCase();
+  } else if (type === 'lower') {
+    ta.value = ta.value.toLowerCase();
+  }
+  onEditorInput();
+}
+
+function copyEditorContent() {
+  const ta = document.getElementById('editorTextArea');
+  navigator.clipboard.writeText(ta.value).then(() => {
+    alert('Content copied to clipboard!');
+  });
+}
+
+// Global Ctrl+S shortcut inside text editor modal
+document.addEventListener('keydown', function (e) {
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+    const modalEl = document.getElementById('textEditorModal');
+    if (modalEl && modalEl.classList.contains('show')) {
+      e.preventDefault();
+      saveEditorContent();
+    }
+  }
+});
+
+// ── 4. Excel & Spreadsheet LIVE EDITOR (SheetJS) ─────────────────────────────
+function openExcelEditor(fileId, fileName, startInEditMode = true) {
+  currentExcelFileId = fileId;
+  isExcelEditMode = startInEditMode;
+
+  document.getElementById('excelViewerTitle').textContent = fileName;
+  document.getElementById('excelViewerMeta').textContent = 'Loading and parsing workbook…';
+  document.getElementById('excelDownloadBtn').href = '/api/files/' + fileId + '/download';
+  document.getElementById('excelSaveStatus').className = 'badge bg-secondary';
+  document.getElementById('excelSaveStatus').textContent = 'Ready';
+  document.getElementById('sheetTabs').innerHTML = '';
+  document.getElementById('excelThead').innerHTML = '';
+  document.getElementById('excelTbody').innerHTML = '<tr><td class="text-center py-4 text-muted">Parsing workbook…</td></tr>';
+
+  const modal = new bootstrap.Modal(document.getElementById('excelViewerModal'));
+  modal.show();
+
+  fetch('/api/files/' + fileId + '/raw')
+    .then(r => r.arrayBuffer())
+    .then(buffer => {
+      const data = new Uint8Array(buffer);
+      const workbook = XLSX.read(data, { type: 'array' });
+      currentWorkbookData = workbook;
+
+      const sheetNames = workbook.SheetNames;
+      if (!sheetNames || sheetNames.length === 0) {
+        document.getElementById('excelTbody').innerHTML = '<tr><td class="text-center py-4 text-muted">Empty workbook</td></tr>';
+        return;
+      }
+
+      document.getElementById('excelViewerMeta').textContent = `${sheetNames.length} sheet(s) in workbook · Editable`;
+
+      // Render Sheet Tabs
+      const tabsEl = document.getElementById('sheetTabs');
+      tabsEl.innerHTML = sheetNames.map((name, idx) => `
+        <li class="nav-item">
+          <button class="nav-link btn-sm ${idx === 0 ? 'active' : ''}" onclick="switchSheet('${name.replace(/'/g, "\\'")}')">
+            <i class="fa-solid fa-table me-1"></i>${name}
+          </button>
+        </li>
+      `).join('');
+
+      renderSheet(sheetNames[0]);
+    })
+    .catch(err => {
+      document.getElementById('excelTbody').innerHTML = `<tr><td class="text-center py-4 text-danger">Failed to parse spreadsheet: ${err.message}</td></tr>`;
+    });
+}
+
+function switchSheet(sheetName) {
+  document.querySelectorAll('#sheetTabs .nav-link').forEach(btn => {
+    btn.classList.toggle('active', btn.textContent.trim() === sheetName);
+  });
+  renderSheet(sheetName);
+}
+
+function renderSheet(sheetName) {
+  activeSheetName = sheetName;
+  const sheet = currentWorkbookData.Sheets[sheetName];
+  if (!sheet) return;
+
+  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+  const thead = document.getElementById('excelThead');
+  const tbody = document.getElementById('excelTbody');
+
+  if (!rows || rows.length === 0) {
+    thead.innerHTML = '<tr><th contenteditable="true">Col 1</th><th contenteditable="true">Col 2</th></tr>';
+    tbody.innerHTML = '<tr><td contenteditable="true"></td><td contenteditable="true"></td></tr>';
+    return;
+  }
+
+  // Header row
+  const headerCols = rows[0] || [];
+  thead.innerHTML = '<tr><th style="width: 40px;" class="text-center bg-secondary">#</th>' + 
+    headerCols.map((col, idx) => `<th contenteditable="true" oninput="markExcelDirty()">${col !== undefined && col !== null && col !== '' ? col : 'Col ' + (idx + 1)}</th>`).join('') + 
+    '</tr>';
+
+  // Body rows
+  const bodyRows = rows.slice(1);
+  tbody.innerHTML = bodyRows.map((row, rIdx) => {
+    return `<tr><td class="text-center text-muted small bg-body-tertiary">${rIdx + 1}</td>` + 
+      headerCols.map((_, cIdx) => `<td contenteditable="true" oninput="markExcelDirty()">${row[cIdx] !== undefined && row[cIdx] !== null ? row[cIdx] : ''}</td>`).join('') + 
+      '</tr>';
+  }).join('');
+}
+
+function markExcelDirty() {
+  const status = document.getElementById('excelSaveStatus');
+  status.className = 'badge bg-warning text-dark';
+  status.textContent = 'Unsaved changes';
+}
+
+function addExcelRow() {
+  const theadCols = document.querySelectorAll('#excelThead th').length - 1; // subtract row number header
+  const tbody = document.getElementById('excelTbody');
+  const newRowNum = tbody.querySelectorAll('tr').length + 1;
+
+  let rowHtml = `<tr><td class="text-center text-muted small bg-body-tertiary">${newRowNum}</td>`;
+  for (let i = 0; i < theadCols; i++) {
+    rowHtml += '<td contenteditable="true" oninput="markExcelDirty()"></td>';
+  }
+  rowHtml += '</tr>';
+  tbody.insertAdjacentHTML('beforeend', rowHtml);
+  markExcelDirty();
+}
+
+function addExcelColumn() {
+  const thead = document.querySelector('#excelThead tr');
+  const colCount = thead.querySelectorAll('th').length;
+  thead.insertAdjacentHTML('beforeend', `<th contenteditable="true" oninput="markExcelDirty()">Col ${colCount}</th>`);
+
+  const tbodyRows = document.querySelectorAll('#excelTbody tr');
+  tbodyRows.forEach(tr => {
+    tr.insertAdjacentHTML('beforeend', '<td contenteditable="true" oninput="markExcelDirty()"></td>');
+  });
+  markExcelDirty();
+}
+
+function deleteExcelSelectedRow() {
+  const tbody = document.getElementById('excelTbody');
+  const rows = tbody.querySelectorAll('tr');
+  if (rows.length > 0) {
+    rows[rows.length - 1].remove();
+    markExcelDirty();
+  }
+}
+
+function saveExcelWorkbook() {
+  if (!currentExcelFileId || !currentWorkbookData) return;
+
+  const status = document.getElementById('excelSaveStatus');
+  status.className = 'badge bg-info text-dark';
+  status.textContent = 'Saving…';
+
+  // Collect data from HTML table
+  const updatedRows = [];
+  
+  // Header cells
+  const ths = document.querySelectorAll('#excelThead th');
+  const headers = Array.from(ths).slice(1).map(th => th.innerText.trim());
+  updatedRows.push(headers);
+
+  // Body cells
+  document.querySelectorAll('#excelTbody tr').forEach(tr => {
+    const tds = tr.querySelectorAll('td');
+    const rowVals = Array.from(tds).slice(1).map(td => td.innerText.trim());
+    updatedRows.push(rowVals);
+  });
+
+  // Convert array back to SheetJS sheet
+  const newSheet = XLSX.utils.aoa_to_sheet(updatedRows);
+  currentWorkbookData.Sheets[activeSheetName] = newSheet;
+
+  // Export updated workbook to Base64
+  const b64 = XLSX.write(currentWorkbookData, { bookType: 'xlsx', type: 'base64' });
+
+  // Save to backend
+  fetch('/api/files/' + currentExcelFileId + '/binary', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ base64_content: b64 })
+  })
+  .then(r => r.json().then(data => ({ status: r.status, data })))
+  .then(({ status: httpStatus, data }) => {
+    if (httpStatus !== 200 || data.error) {
+      status.className = 'badge bg-danger';
+      status.textContent = 'Save failed';
+    } else {
+      status.className = 'badge bg-success';
+      status.textContent = 'Saved ✓';
+    }
+  })
+  .catch(() => {
+    status.className = 'badge bg-danger';
+    status.textContent = 'Save failed';
+  });
+}
+
+function filterSheetTable() {
+  const q = (document.getElementById('sheetSearchInput').value || '').toLowerCase().trim();
+  const rows = document.querySelectorAll('#excelTbody tr');
+  rows.forEach(tr => {
+    const text = tr.innerText.toLowerCase();
+    tr.style.display = (!q || text.includes(q)) ? '' : 'none';
+  });
+}
+
+// ── 5. PDF Reader & Editor ──────────────────────────────────────────────────
+function viewPdfDocument(fileId, fileName) {
+  currentPdfFileId = fileId;
+  document.getElementById('pdfViewerTitle').textContent = fileName;
+  document.getElementById('pdfIframe').src = '/api/files/' + fileId + '/raw';
+  document.getElementById('pdfDownloadBtn').href = '/api/files/' + fileId + '/download';
+  document.getElementById('pdfDownloadBtn').setAttribute('download', fileName);
+
+  switchPdfMode('view');
+  const modal = new bootstrap.Modal(document.getElementById('pdfViewerModal'));
+  modal.show();
+}
+
+function openPdfEditor(fileId, fileName) {
+  viewPdfDocument(fileId, fileName);
+  switchPdfMode('edit');
+}
+
+function switchPdfMode(mode) {
+  const isView = mode === 'view';
+  document.getElementById('pdfModeViewBtn').classList.toggle('active', isView);
+  document.getElementById('pdfModeEditBtn').classList.toggle('active', !isView);
+  document.getElementById('pdfViewContainer').classList.toggle('d-none', !isView);
+  document.getElementById('pdfEditContainer').classList.toggle('d-none', isView);
+}
+
+async function applyPdfEditAndSave() {
+  if (!currentPdfFileId) return;
+
+  const textToAdd = document.getElementById('pdfAddTextInput').value.trim();
+  const pageNum = parseInt(document.getElementById('pdfPageNumber').value, 10) || 1;
+  const fontSize = parseInt(document.getElementById('pdfFontSize').value, 10) || 18;
+  const position = document.getElementById('pdfPosition').value;
+  const status = document.getElementById('pdfEditStatus');
+  const btn = document.getElementById('pdfApplySaveBtn');
+
+  if (!textToAdd) {
+    status.innerHTML = '<span class="text-danger">Please enter text to add.</span>';
+    return;
+  }
+
+  btn.disabled = true;
+  status.innerHTML = '<span class="text-muted"><i class="fa-solid fa-spinner fa-spin me-1"></i>Modifying PDF…</span>';
+
+  try {
+    // 1. Fetch raw PDF bytes
+    const res = await fetch('/api/files/' + currentPdfFileId + '/raw');
+    const existingBytes = await res.arrayBuffer();
+
+    // 2. Load with pdf-lib
+    const pdfDoc = await PDFLib.PDFDocument.load(existingBytes);
+    const pages = pdfDoc.getPages();
+    const targetIdx = Math.min(Math.max(1, pageNum), pages.length) - 1;
+    const page = pages[targetIdx];
+    const { width, height } = page.getSize();
+
+    // 3. Position calculation
+    let x = 50;
+    let y = 50;
+    if (position === 'top') {
+      y = height - 40;
+    } else if (position === 'bottom') {
+      y = 40;
+    } else if (position === 'center') {
+      x = width / 2 - (textToAdd.length * fontSize * 0.25);
+      y = height / 2;
+    }
+
+    const font = await pdfDoc.embedFont(PDFLib.StandardFonts.HelveticaBold);
+    page.drawText(textToAdd, {
+      x,
+      y,
+      size: fontSize,
+      font,
+      color: PDFLib.rgb(0.85, 0.15, 0.15)
+    });
+
+    // 4. Save to base64
+    const modifiedBytes = await pdfDoc.save();
+    let binary = '';
+    const bytes = new Uint8Array(modifiedBytes);
+    for (let i = 0; i < bytes.byteLength; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    const b64 = btoa(binary);
+
+    // 5. Send to backend
+    const saveRes = await fetch('/api/files/' + currentPdfFileId + '/binary', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ base64_content: b64 })
+    });
+
+    const data = await saveRes.json();
+    btn.disabled = false;
+
+    if (saveRes.status === 200) {
+      status.innerHTML = '<span class="text-success"><i class="fa-solid fa-check me-1"></i>PDF updated and saved!</span>';
+      // Refresh iframe
+      document.getElementById('pdfIframe').src = '/api/files/' + currentPdfFileId + '/raw?t=' + Date.now();
+      setTimeout(() => switchPdfMode('view'), 1200);
+    } else {
+      status.innerHTML = '<span class="text-danger">' + (data.error || 'Failed to save PDF') + '</span>';
+    }
+  } catch (err) {
+    btn.disabled = false;
+    status.innerHTML = '<span class="text-danger">Error: ' + err.message + '</span>';
+  }
+}
+
+// ── 6. Image Lightbox ───────────────────────────────────────────────────────
+function viewImage(fileId, fileName) {
+  document.getElementById('imageLightboxTitle').textContent = fileName;
+  document.getElementById('imageLightboxImg').src = '/api/files/' + fileId + '/raw';
+  document.getElementById('imageLightboxDownloadBtn').href = '/api/files/' + fileId + '/download';
+  document.getElementById('imageLightboxDownloadBtn').setAttribute('download', fileName);
+
+  const modal = new bootstrap.Modal(document.getElementById('imageLightboxModal'));
+  modal.show();
+}
+
+// ── 7. Delete File ──────────────────────────────────────────────────────────
+function openDeleteFileModal(fileId, fileName) {
+  deleteTargetFileId = fileId;
+  document.getElementById('deleteFileName').textContent = '"' + fileName + '"';
+  const modal = new bootstrap.Modal(document.getElementById('deleteFileModal'));
+  modal.show();
+}
+
+function confirmDeleteFile() {
+  if (!deleteTargetFileId) return;
+  const btn = document.getElementById('confirmDeleteFileBtn');
+  btn.disabled = true;
+
+  fetch('/api/files/' + deleteTargetFileId, { method: 'DELETE' })
+    .then(r => r.json())
+    .then(() => {
+      window.location.reload();
+    })
+    .catch(() => {
+      btn.disabled = false;
+      alert('Failed to delete file.');
+    });
+}
+
+// ── 8. Filtering & Live Search ──────────────────────────────────────────────
+let activeCategory = 'all';
+
+function filterCategory(cat) {
+  activeCategory = cat;
+  document.querySelectorAll('.category-filter-btn').forEach(btn => {
+    const isTarget = btn.dataset.cat === cat;
+    btn.classList.toggle('active', isTarget);
+    btn.classList.toggle('btn-primary', isTarget);
+    btn.classList.toggle('text-white', isTarget);
+    btn.classList.toggle('btn-outline-secondary', !isTarget);
+  });
+  applyAllFilters();
+}
+
+function filterFilesLive() {
+  applyAllFilters();
+}
+
+function applyAllFilters() {
+  const query = (document.getElementById('fileSearchInput').value || '').toLowerCase().trim();
+  const cards = document.querySelectorAll('.file-card-col');
+  let visibleCount = 0;
+
+  cards.forEach(card => {
+    const name = card.dataset.filename || '';
+    const type = card.dataset.filetype || '';
+    
+    // Category match
+    let matchCat = false;
+    if (activeCategory === 'all') {
+      matchCat = true;
+    } else if (activeCategory === 'spreadsheets') {
+      matchCat = (type === 'excel' || type === 'csv');
+    } else {
+      matchCat = (type === activeCategory);
+    }
+
+    // Search query match
+    const matchQuery = (!query || name.includes(query));
+
+    if (matchCat && matchQuery) {
+      card.style.display = '';
+      visibleCount++;
+    } else {
+      card.style.display = 'none';
+    }
+  });
+
+  const emptyState = document.getElementById('filesEmptyState');
+  if (emptyState) {
+    emptyState.classList.toggle('d-none', visibleCount > 0);
+  }
+}
+
+function clearFileSearch() {
+  const input = document.getElementById('fileSearchInput');
+  if (input) {
+    input.value = '';
+    applyAllFilters();
+  }
+}
+</script>
+{% endblock %}

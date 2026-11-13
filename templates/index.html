@@ -1,0 +1,354 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard – Smart Notepad{% endblock %}
+
+{% block content %}
+<!-- ── Hero Section ──────────────────────────────────────────────────────── -->
+<div class="text-center py-4 mb-3 hero-section rounded-3">
+  <h1 class="display-5 fw-bold">Welcome to Smart Notepad 📝</h1>
+  <p class="lead text-muted mb-0">Capture your thoughts, ideas, and everything in between.</p>
+</div>
+
+<!-- ── Stats Bar ─────────────────────────────────────────────────────────── -->
+<div class="row g-3 mb-4" id="statsBar">
+  <div class="col-6 col-md-3">
+    <div class="card text-center border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="fs-2 fw-bold text-primary" id="statTotal">{{ total_notes }}</div>
+        <div class="text-muted small">Total Notes</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card text-center border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="fs-2 fw-bold text-success" id="statRecent">–</div>
+        <div class="text-muted small">Updated Today</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card text-center border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="fs-2 fw-bold text-warning" id="statWords">–</div>
+        <div class="text-muted small">Total Words</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card text-center border-0 shadow-sm h-100 d-flex align-items-center justify-content-center">
+      <div class="card-body d-flex flex-column align-items-center justify-content-center">
+        <a href="/note/new" class="btn btn-primary w-100">
+          <i class="fa-solid fa-plus me-1"></i> New Note
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Search + Sort Bar ──────────────────────────────────────────────────── -->
+<div class="d-flex flex-column flex-md-row gap-2 mb-4 align-items-md-center">
+  <div class="flex-grow-1">
+    <div class="input-group input-group-lg shadow-sm">
+      <span class="input-group-text bg-body border-end-0">
+        <i class="fa-solid fa-magnifying-glass text-muted"></i>
+      </span>
+      <input type="text" class="form-control border-start-0 ps-0" id="searchInput"
+             placeholder="Search your notes…" autocomplete="off"
+             value="{{ request.args.get('q', '') }}" />
+      <button class="btn btn-outline-secondary" id="clearSearch" title="Clear search">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+  </div>
+  <div class="d-flex gap-2 align-items-center">
+    <label class="text-muted small mb-0 text-nowrap">Sort by:</label>
+    <select class="form-select form-select-sm shadow-sm" id="sortSelect" style="min-width:140px;">
+      <option value="updated" selected>Last Updated</option>
+      <option value="created">Date Created</option>
+      <option value="heading">Heading A–Z</option>
+    </select>
+  </div>
+</div>
+
+<!-- ── Notes Grid ─────────────────────────────────────────────────────────── -->
+<div id="notesSection">
+  <h5 class="text-muted mb-3">
+    <i class="fa-solid fa-layer-group me-1"></i>
+    All Notes <span class="badge bg-secondary ms-1" id="notesCountBadge">…</span>
+  </h5>
+  <div class="row g-3" id="notesGrid">
+    <!-- Cards injected by JS -->
+  </div>
+
+  <!-- Empty State -->
+  <div id="emptyState" class="text-center py-5" style="display:none!important;">
+    <div class="display-1 mb-3">🗒️</div>
+    <h4 class="text-muted">No notes yet.</h4>
+    <p class="text-muted">Create your first note and start writing!</p>
+    <a href="/note/new" class="btn btn-primary btn-lg mt-2">
+      <i class="fa-solid fa-plus me-1"></i> Create Note
+    </a>
+  </div>
+
+  <!-- Search Empty State -->
+  <div id="searchEmptyState" class="text-center py-5" style="display:none!important;">
+    <div class="display-1 mb-3">🔍</div>
+    <h4 class="text-muted">No notes matched your search.</h4>
+    <p class="text-muted">Try different keywords.</p>
+    <button class="btn btn-outline-secondary mt-2" onclick="clearSearch()">Clear Search</button>
+  </div>
+</div>
+
+<!-- ── Loading Spinner ────────────────────────────────────────────────────── -->
+<div id="loadingSpinner" class="text-center py-5">
+  <div class="spinner-border text-primary" role="status">
+    <span class="visually-hidden">Loading…</span>
+  </div>
+  <p class="text-muted mt-2 small">Loading notes…</p>
+</div>
+
+<!-- ── Delete Confirmation Modal ──────────────────────────────────────────── -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header border-0">
+        <h5 class="modal-title text-danger" id="deleteModalLabel">
+          <i class="fa-solid fa-triangle-exclamation me-2"></i>Delete Note
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p>Are you sure you want to delete <strong id="deleteNoteTitle">"this note"</strong>?</p>
+        <p class="text-muted small mb-0">This action cannot be undone.</p>
+      </div>
+      <div class="modal-footer border-0">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger" id="confirmDeleteBtn">
+          <i class="fa-solid fa-trash me-1"></i>Delete
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ── State ─────────────────────────────────────────────────────────────────
+let allNotes = [];
+let deleteTargetId = null;
+const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+
+// ── Init ─────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function () {
+  loadNotes();
+
+  document.getElementById('sortSelect').addEventListener('change', function () {
+    renderNotes(filterNotes(document.getElementById('searchInput').value.trim()));
+  });
+
+  let searchTimer;
+  document.getElementById('searchInput').addEventListener('input', function () {
+    clearTimeout(searchTimer);
+    const q = this.value.trim();
+    searchTimer = setTimeout(function () {
+      if (q.length >= 1) {
+        fetchSearchNotes(q);
+      } else {
+        renderNotes(allNotes);
+      }
+    }, 350);
+  });
+
+  document.getElementById('clearSearch').addEventListener('click', clearSearch);
+
+  document.getElementById('confirmDeleteBtn').addEventListener('click', function () {
+    if (deleteTargetId === null) return;
+    deleteNote(deleteTargetId);
+  });
+});
+
+// ── Load all notes ────────────────────────────────────────────────────────
+function loadNotes() {
+  showSpinner(true);
+  const sort = document.getElementById('sortSelect').value;
+  fetch('/api/notes?sort=' + sort)
+    .then(r => r.json())
+    .then(data => {
+      allNotes = Array.isArray(data) ? data : [];
+      updateStats(allNotes);
+      const query = document.getElementById('searchInput').value.trim();
+      if (query) {
+        fetchSearchNotes(query);
+      } else {
+        renderNotes(allNotes);
+      }
+      showSpinner(false);
+    })
+    .catch(err => {
+      console.error('Failed to load notes:', err);
+      showSpinner(false);
+    });
+}
+
+// ── Fetch search results ──────────────────────────────────────────────────
+function fetchSearchNotes(q) {
+  fetch('/api/notes/search?q=' + encodeURIComponent(q))
+    .then(r => r.json())
+    .then(data => {
+      const results = Array.isArray(data) ? data : [];
+      renderNotes(results, true);
+    })
+    .catch(console.error);
+}
+
+// ── Filter locally ────────────────────────────────────────────────────────
+function filterNotes(q) {
+  if (!q) return allNotes;
+  const lower = q.toLowerCase();
+  return allNotes.filter(n =>
+    (n.heading || '').toLowerCase().includes(lower) ||
+    (n.content || '').toLowerCase().includes(lower)
+  );
+}
+
+// ── Clear search ──────────────────────────────────────────────────────────
+function clearSearch() {
+  document.getElementById('searchInput').value = '';
+  renderNotes(allNotes);
+}
+
+// ── Render notes grid ─────────────────────────────────────────────────────
+function renderNotes(notes, isSearch) {
+  const grid = document.getElementById('notesGrid');
+  const empty = document.getElementById('emptyState');
+  const searchEmpty = document.getElementById('searchEmptyState');
+  const badge = document.getElementById('notesCountBadge');
+
+  grid.innerHTML = '';
+  badge.textContent = notes.length;
+
+  empty.style.display = 'none';
+  searchEmpty.style.display = 'none';
+
+  if (notes.length === 0) {
+    if (isSearch) {
+      searchEmpty.style.removeProperty('display');
+    } else {
+      empty.style.removeProperty('display');
+    }
+    return;
+  }
+
+  // Sort
+  const sort = document.getElementById('sortSelect').value;
+  const sorted = [...notes].sort((a, b) => {
+    if (sort === 'created') return new Date(b.created_at) - new Date(a.created_at);
+    if (sort === 'heading') return (a.heading || '').localeCompare(b.heading || '');
+    return new Date(b.updated_at) - new Date(a.updated_at);
+  });
+
+  sorted.forEach(note => {
+    grid.insertAdjacentHTML('beforeend', noteCard(note));
+  });
+}
+
+// ── Note card HTML ────────────────────────────────────────────────────────
+function noteCard(note) {
+  const preview = stripHtml(note.content || '').substring(0, 100);
+  const heading = (note.heading || 'Untitled').substring(0, 60);
+  const updated = formatDate(note.updated_at);
+  const created = formatDate(note.created_at);
+  return `
+  <div class="col-12 col-md-6 col-lg-4">
+    <div class="card h-100 shadow-sm note-card border-0">
+      <div class="card-body d-flex flex-column">
+        <h5 class="card-title text-truncate mb-1" title="${escHtml(note.heading || 'Untitled')}">
+          ${escHtml(heading)}
+        </h5>
+        <p class="card-text text-muted small flex-grow-1 mb-2">
+          ${escHtml(preview)}${preview.length === 100 ? '…' : ''}
+        </p>
+        <div class="text-muted" style="font-size:0.72rem;">
+          <i class="fa-regular fa-clock me-1"></i>Updated ${updated}
+          &nbsp;·&nbsp;
+          <i class="fa-regular fa-calendar me-1"></i>Created ${created}
+        </div>
+      </div>
+      <div class="card-footer bg-transparent border-top-0 d-flex gap-2 pb-3 px-3">
+        <a href="/note/${note.id}" class="btn btn-sm btn-primary flex-grow-1">
+          <i class="fa-solid fa-pen me-1"></i>Edit
+        </a>
+        <a href="/api/notes/${note.id}/export" class="btn btn-sm btn-outline-secondary" title="Export as TXT">
+          <i class="fa-solid fa-file-export"></i>
+        </a>
+        <button class="btn btn-sm btn-outline-danger" title="Delete"
+                onclick="confirmDelete(${note.id}, '${escHtml(heading).replace(/'/g, "\\'")}')">
+          <i class="fa-solid fa-trash"></i>
+        </button>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ── Confirm delete ────────────────────────────────────────────────────────
+function confirmDelete(id, title) {
+  deleteTargetId = id;
+  document.getElementById('deleteNoteTitle').textContent = '"' + title + '"';
+  deleteModal.show();
+}
+
+// ── Delete note ───────────────────────────────────────────────────────────
+function deleteNote(id) {
+  fetch('/api/notes/' + id, { method: 'DELETE' })
+    .then(r => r.json())
+    .then(data => {
+      deleteModal.hide();
+      deleteTargetId = null;
+      allNotes = allNotes.filter(n => n.id !== id);
+      updateStats(allNotes);
+      renderNotes(allNotes);
+    })
+    .catch(err => {
+      console.error('Delete failed:', err);
+      deleteModal.hide();
+    });
+}
+
+// ── Stats ─────────────────────────────────────────────────────────────────
+function updateStats(notes) {
+  document.getElementById('statTotal').textContent = notes.length;
+
+  const today = new Date().toDateString();
+  const recent = notes.filter(n => new Date(n.updated_at).toDateString() === today).length;
+  document.getElementById('statRecent').textContent = recent;
+
+  const words = notes.reduce((sum, n) => {
+    return sum + stripHtml(n.content || '').split(/\s+/).filter(Boolean).length;
+  }, 0);
+  document.getElementById('statWords').textContent = words.toLocaleString();
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+function showSpinner(show) {
+  document.getElementById('loadingSpinner').style.display = show ? 'block' : 'none';
+}
+
+function formatDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function stripHtml(html) {
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  return tmp.textContent || tmp.innerText || '';
+}
+
+function escHtml(str) {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+</script>
+{% endblock %}
