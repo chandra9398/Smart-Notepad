@@ -5,7 +5,13 @@ Tests all functional requirements and edge cases.
 
 import io
 import json
+import os
 import unittest
+
+# Ensure unit tests run on an isolated in-memory SQLite database
+os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+os.environ["FLASK_ENV"] = "testing"
+
 from app import app, db
 from database import (
     Credential,
