@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: smart-notepad
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.0
+      - key: FLASK_ENV
+        value: production
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ADMIN_USERNAME
+        value: admin
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: smart-notepad-db
+          property: connectionString
+
+databases:
+  - name: smart-notepad-db
+    databaseName: smart_notepad
+    user: notepad_user
+    plan: free
