@@ -2,6 +2,7 @@
 database.py – SQLAlchemy models and helper functions for Smart Notepad.
 """
 
+import os
 from datetime import datetime, timezone
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -125,15 +126,62 @@ class FileItem(db.Model):
         return f"<FileItem id={self.id} name={self.original_name!r}>"
 
 
+class User(db.Model):
+    __tablename__ = "users"
+
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=utc_now)
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        default=utc_now,
+        onupdate=utc_now,
+    )
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "username": self.username,
+            "created_at": self.created_at.isoformat() + "Z",
+        }
+
+    def __repr__(self):
+        return f"<User id={self.id} username={self.username!r}>"
+
+
 # ---------------------------------------------------------------------------
 # Initialiser
 # ---------------------------------------------------------------------------
+
+def init_default_admin():
+    """Ensure the administrator user exists from secure environment variables."""
+    username = os.environ.get("ADMIN_USERNAME", "admin").strip()
+    password = os.environ.get("ADMIN_PASSWORD")
+    if not password:
+        return None
+    user = User.query.filter_by(username=username).first()
+    if not user:
+        user = User(username=username)
+        user.set_password(password)
+        db.session.add(user)
+        db.session.commit()
+    return user
+
 
 def init_db(app):
     """Bind SQLAlchemy to *app* and create all tables."""
     db.init_app(app)
     with app.app_context():
         db.create_all()
+        init_default_admin()
 
 
 # ---------------------------------------------------------------------------
@@ -376,3 +424,38 @@ def delete_file_item(file_id):
         raise ValueError(f"File {file_id} not found")
     db.session.delete(item)
     db.session.commit()
+
+
+# ---------------------------------------------------------------------------
+# User Authentication Helpers
+# ---------------------------------------------------------------------------
+
+def get_user_by_username(username):
+    """Retrieve User by username, case-insensitive."""
+    if not username:
+        return None
+    return User.query.filter(db.func.lower(User.username) == username.strip().lower()).first()
+
+
+def get_user_by_id(user_id):
+    """Retrieve User by primary key ID."""
+    return db.session.get(User, user_id)
+
+
+def verify_user_credentials(username, password):
+    """Verify username and password; returns User if valid, else None."""
+    user = get_user_by_username(username)
+    if user and user.check_password(password):
+        return user
+    return None
+
+
+def change_user_password(user_id, new_password):
+    """Change user password; raises ValueError if not found."""
+    user = db.session.get(User, user_id)
+    if user is None:
+        raise ValueError(f"User {user_id} not found")
+    user.set_password(new_password)
+    user.updated_at = utc_now()
+    db.session.commit()
+    return user

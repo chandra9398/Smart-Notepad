@@ -65,3 +65,4 @@ desktop.ini
 *.log
 scratch/
 tmp/
+cloudflared.exe

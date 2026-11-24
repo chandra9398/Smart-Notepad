@@ -17,6 +17,7 @@ from database import (
     Credential,
     FileItem,
     Note,
+    User,
     VaultConfig,
     create_note,
     delete_note,
@@ -30,6 +31,7 @@ from database import (
 class SmartNotepadTestCase(unittest.TestCase):
     def setUp(self):
         app.config["TESTING"] = True
+        app.config["WTF_CSRF_ENABLED"] = False
         self.client = app.test_client()
         with app.app_context():
             db.create_all()
@@ -37,7 +39,17 @@ class SmartNotepadTestCase(unittest.TestCase):
             Credential.query.delete()
             VaultConfig.query.delete()
             FileItem.query.delete()
+            User.query.delete()
+            user = User(username="admin")
+            user.set_password("testpass123")
+            db.session.add(user)
             db.session.commit()
+            self.user_id = user.id
+
+        # Authenticate client by default for test cases
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = self.user_id
+            sess["username"] = "admin"
 
     def tearDown(self):
         with app.app_context():
@@ -382,6 +394,41 @@ class SmartNotepadTestCase(unittest.TestCase):
         # 4. Clean up
         r = self.client.delete(f"/api/files/{pdf_id}")
         self.assertEqual(r.status_code, 200)
+
+    def test_authentication_flow(self):
+        """Test full login, unauthorized protection, and logout workflow."""
+        # Unauthenticated client
+        unauth_client = app.test_client()
+
+        # 1. Unauthenticated page access redirects to /login
+        r = unauth_client.get("/")
+        self.assertEqual(r.status_code, 302)
+        self.assertIn("/login", r.headers.get("Location"))
+
+        # 2. Unauthenticated API access returns 401 Unauthorized
+        r = unauth_client.get("/api/notes")
+        self.assertEqual(r.status_code, 401)
+        self.assertIn("error", r.get_json())
+
+        # 3. Login page renders HTTP 200
+        r = unauth_client.get("/login")
+        self.assertEqual(r.status_code, 200)
+        self.assertIn(b"Sign In", r.data)
+
+        # 4. Login with invalid password fails
+        r = unauth_client.post("/login", data={"username": "admin", "password": "wrongpassword"})
+        self.assertEqual(r.status_code, 200)
+        self.assertIn(b"Invalid username or password", r.data)
+
+        # 5. Login with correct password succeeds and redirects
+        r = unauth_client.post("/login", data={"username": "admin", "password": "testpass123"}, follow_redirects=True)
+        self.assertEqual(r.status_code, 200)
+        self.assertIn(b"Smart Notepad", r.data)
+
+        # 6. Logout clears session and redirects to /login
+        r = unauth_client.get("/logout", follow_redirects=True)
+        self.assertEqual(r.status_code, 200)
+        self.assertIn(b"Sign In", r.data)
 
 
 if __name__ == "__main__":

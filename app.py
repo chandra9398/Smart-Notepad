@@ -15,9 +15,11 @@ from werkzeug.utils import secure_filename
 def utc_now():
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
+from functools import wraps
 from flask import (
     Flask,
     Response,
+    flash,
     jsonify,
     redirect,
     render_template,
@@ -44,6 +46,7 @@ from database import (
     get_credential,
     get_file_item,
     get_note,
+    get_user_by_id,
     init_db,
     is_vault_setup,
     search_notes,
@@ -51,10 +54,12 @@ from database import (
     update_credential,
     update_file_item,
     update_note,
+    verify_user_credentials,
     verify_vault_password,
     Credential,
     FileItem,
     Note,
+    User,
     VaultConfig,
 )
 
@@ -86,6 +91,70 @@ def add_security_headers(response):
     response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["X-XSS-Protection"] = "1; mode=block"
     return response
+
+
+# ---------------------------------------------------------------------------
+# Authentication Middleware & Context
+# ---------------------------------------------------------------------------
+
+@app.context_processor
+def inject_user():
+    user = None
+    if session.get("user_id"):
+        user = get_user_by_id(session["user_id"])
+    return {"current_user": user}
+
+
+@app.before_request
+def check_authentication():
+    # Public endpoints that do not require login
+    if request.endpoint in ("login", "static") or request.path.startswith("/static/"):
+        return None
+
+    if not session.get("user_id"):
+        if request.path.startswith("/api/"):
+            return jsonify({"error": "Unauthorized", "message": "Authentication required. Please log in."}), 401
+        next_target = request.full_path if request.query_string else request.path
+        return redirect(url_for("login", next=next_target))
+
+
+# ---------------------------------------------------------------------------
+# Auth Routes
+# ---------------------------------------------------------------------------
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if session.get("user_id"):
+        return redirect(url_for("index"))
+
+    if request.method == "POST":
+        username = (request.form.get("username") or "").strip()
+        password = request.form.get("password") or ""
+        remember = bool(request.form.get("remember"))
+
+        user = verify_user_credentials(username, password)
+        if user:
+            session["user_id"] = user.id
+            session["username"] = user.username
+            if remember:
+                session.permanent = True
+                app.permanent_session_lifetime = timedelta(days=30)
+            flash(f"Welcome back, {user.username}!", "success")
+            next_url = request.args.get("next")
+            if next_url and next_url.startswith("/") and not next_url.startswith("//"):
+                return redirect(next_url)
+            return redirect(url_for("index"))
+        else:
+            flash("Invalid username or password. Please try again.", "error")
+
+    return render_template("login.html")
+
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    flash("You have been signed out.", "info")
+    return redirect(url_for("login"))
 
 
 # ---------------------------------------------------------------------------

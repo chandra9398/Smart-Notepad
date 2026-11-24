@@ -29,6 +29,7 @@
       </button>
 
       <div class="collapse navbar-collapse" id="mainNav">
+        {% if current_user %}
         <!-- Nav Links -->
         <ul class="navbar-nav me-auto mb-2 mb-lg-0">
           <li class="nav-item">
@@ -67,6 +68,20 @@
             </button>
           </div>
         </form>
+
+        <!-- User Profile Pill -->
+        <div class="d-flex align-items-center gap-2 me-2">
+          <span class="badge bg-secondary bg-opacity-25 text-body border px-2 py-1 d-flex align-items-center gap-1 rounded-pill">
+            <i class="fa-solid fa-circle-user text-primary"></i>
+            <span>{{ current_user.username }}</span>
+          </span>
+          <a href="{{ url_for('logout') }}" class="btn btn-outline-danger btn-sm" title="Sign Out">
+            <i class="fa-solid fa-arrow-right-from-bracket"></i>
+          </a>
+        </div>
+        {% else %}
+        <div class="ms-auto"></div>
+        {% endif %}
 
         <!-- Dark Mode Toggle -->
         <button class="btn btn-outline-secondary btn-sm" id="darkModeToggle" title="Toggle dark mode">
